@@ -253,4 +253,3 @@ func (e *customMetricEncodingExtension) createSummaryMetric(metricName string, d
 		Ts:    ts,
 	}
 }
-

@@ -129,6 +129,258 @@ def send_trace(host_name: str, host_region: str, span_name: str) -> None:
     payload = make_otlp_traces_json(host_name, host_region, span_name)
     send_otlp_data(OTLP_HTTP_TRACES_ENDPOINT, payload, "trace")
 
+def send_go_runtime_metrics() -> None:
+    """Send Go runtime metrics similar to the provided example"""
+    # Generate dynamic timestamps
+    now_unix_nanos = int(time.time() * 1e9)
+    start_time_unix_nanos = now_unix_nanos - 5000000000  # 5 seconds ago
+    
+    payload = {
+        "resourceMetrics": [
+            {
+                "resource": {
+                    "attributes": [
+                        {"key": "host.name", "value": {"stringValue": "hostname2"}},
+                        {"key": "os.name", "value": {"stringValue": "linux"}},
+                        {"key": "service.name", "value": {"stringValue": "tracksreceiver"}},
+                        {"key": "service.version", "value": {"stringValue": "devtest"}}
+                    ]
+                },
+                "scopeMetrics": [
+                    {
+                        "scope": {
+                            "name": "go.opentelemetry.io/contrib/instrumentation/runtime",
+                            "version": "0.62.0"
+                        },
+                        "metrics": [
+                            {
+                                "name": "go.memory.used",
+                                "description": "Memory used by the Go runtime.",
+                                "unit": "By",
+                                "sum": {
+                                    "dataPoints": [
+                                        {
+                                            "attributes": [
+                                                {"key": "go.memory.type", "value": {"stringValue": "stack"}}
+                                            ],
+                                            "startTimeUnixNano": str(start_time_unix_nanos),
+                                            "timeUnixNano": str(now_unix_nanos),
+                                            "asInt": "589824"
+                                        },
+                                        {
+                                            "attributes": [
+                                                {"key": "go.memory.type", "value": {"stringValue": "other"}}
+                                            ],
+                                            "startTimeUnixNano": str(start_time_unix_nanos),
+                                            "timeUnixNano": str(now_unix_nanos),
+                                            "asInt": "10378256"
+                                        }
+                                    ],
+                                    "aggregationTemporality": 2
+                                }
+                            },
+                            {
+                                "name": "go.memory.allocated",
+                                "description": "Memory allocated to the heap by the application.",
+                                "unit": "By",
+                                "sum": {
+                                    "dataPoints": [
+                                        {
+                                            "startTimeUnixNano": str(start_time_unix_nanos),
+                                            "timeUnixNano": str(now_unix_nanos),
+                                            "asInt": "9453656"
+                                        }
+                                    ],
+                                    "aggregationTemporality": 2,
+                                    "isMonotonic": True
+                                }
+                            },
+                            {
+                                "name": "go.memory.allocations",
+                                "description": "Count of allocations to the heap by the application.",
+                                "unit": "{allocation}",
+                                "sum": {
+                                    "dataPoints": [
+                                        {
+                                            "startTimeUnixNano": str(start_time_unix_nanos),
+                                            "timeUnixNano": str(now_unix_nanos),
+                                            "asInt": "50553"
+                                        }
+                                    ],
+                                    "aggregationTemporality": 2,
+                                    "isMonotonic": True
+                                }
+                            },
+                            {
+                                "name": "go.memory.gc.goal",
+                                "description": "Heap size target for the end of the GC cycle.",
+                                "unit": "By",
+                                "sum": {
+                                    "dataPoints": [
+                                        {
+                                            "startTimeUnixNano": str(start_time_unix_nanos),
+                                            "timeUnixNano": str(now_unix_nanos),
+                                            "asInt": "5605112"
+                                        }
+                                    ],
+                                    "aggregationTemporality": 2
+                                }
+                            },
+                            {
+                                "name": "go.goroutine.count",
+                                "description": "Count of live goroutines.",
+                                "unit": "{goroutine}",
+                                "sum": {
+                                    "dataPoints": [
+                                        {
+                                            "startTimeUnixNano": str(start_time_unix_nanos),
+                                            "timeUnixNano": str(now_unix_nanos),
+                                            "asInt": "22"
+                                        }
+                                    ],
+                                    "aggregationTemporality": 2
+                                }
+                            },
+                            {
+                                "name": "go.processor.limit",
+                                "description": "The number of OS threads that can execute user-level Go code simultaneously.",
+                                "unit": "{thread}",
+                                "sum": {
+                                    "dataPoints": [
+                                        {
+                                            "startTimeUnixNano": str(start_time_unix_nanos),
+                                            "timeUnixNano": str(now_unix_nanos),
+                                            "asInt": "2"
+                                        }
+                                    ],
+                                    "aggregationTemporality": 2
+                                }
+                            },
+                            {
+                                "name": "go.config.gogc",
+                                "description": "Heap size target percentage configured by the user, otherwise 100.",
+                                "unit": "%",
+                                "sum": {
+                                    "dataPoints": [
+                                        {
+                                            "startTimeUnixNano": str(start_time_unix_nanos),
+                                            "timeUnixNano": str(now_unix_nanos),
+                                            "asInt": "100"
+                                        }
+                                    ],
+                                    "aggregationTemporality": 2
+                                }
+                            }
+                        ]
+                    }
+                ],
+                "schemaUrl": "https://opentelemetry.io/schemas/1.17.0"
+            }
+        ]
+    }
+    send_otlp_data(OTLP_HTTP_METRICS_ENDPOINT, payload, "Go runtime metrics")
+
+def send_redis_metrics() -> None:
+    """Send Redis metrics"""
+    # Generate dynamic timestamps
+    now_unix_nanos = int(time.time() * 1e9)
+    start_time_unix_nanos = now_unix_nanos - 5000000000  # 5 seconds ago
+    
+    payload = {
+        "resourceMetrics": [
+            {
+                "resource": {
+                    "attributes": [
+                        {"key": "host.name", "value": {"stringValue": "redis-server-01"}},
+                        {"key": "service.name", "value": {"stringValue": "redis"}},
+                        {"key": "service.version", "value": {"stringValue": "7.0.0"}}
+                    ]
+                },
+                "scopeMetrics": [
+                    {
+                        "scope": {
+                            "name": "redis",
+                            "version": "1.0.0"
+                        },
+                        "metrics": [
+                            {
+                                "name": "redis.replication.offset",
+                                "description": "The server's current replication offset",
+                                "unit": "By",
+                                "gauge": {
+                                    "dataPoints": [
+                                        {
+                                            "startTimeUnixNano": str(start_time_unix_nanos),
+                                            "timeUnixNano": str(now_unix_nanos),
+                                            "asInt": "0"
+                                        }
+                                    ]
+                                }
+                            }
+                        ]
+                    }
+                ],
+                "schemaUrl": "https://opentelemetry.io/schemas/1.17.0"
+            }
+        ]
+    }
+    send_otlp_data(OTLP_HTTP_METRICS_ENDPOINT, payload, "Redis metrics")
+
+def send_database_metrics() -> None:
+    """Send database metrics"""
+    # Generate dynamic timestamps
+    now_unix_nanos = int(time.time() * 1e9)
+    start_time_unix_nanos = now_unix_nanos - 5000000000  # 5 seconds ago
+    
+    payload = {
+        "resourceMetrics": [
+            {
+                "resource": {
+                    "attributes": [
+                        {"key": "host.name", "value": {"stringValue": "db-server-01"}},
+                        {"key": "service.name", "value": {"stringValue": "database"}},
+                        {"key": "service.version", "value": {"stringValue": "postgres-15"}}
+                    ]
+                },
+                "scopeMetrics": [
+                    {
+                        "scope": {
+                            "name": "database",
+                            "version": "1.0.0"
+                        },
+                        "metrics": [
+                            {
+                                "name": "active.connections",
+                                "description": "Number of active database connections",
+                                "unit": "{connection}",
+                                "sum": {
+                                    "dataPoints": [
+                                        {
+                                            "attributes": [
+                                                {
+                                                    "key": "db.name",
+                                                    "value": {
+                                                        "stringValue": "userdb"
+                                                    }
+                                                }
+                                            ],
+                                            "startTimeUnixNano": str(start_time_unix_nanos),
+                                            "timeUnixNano": str(now_unix_nanos),
+                                            "asInt": "25"
+                                        }
+                                    ],
+                                    "aggregationTemporality": 2
+                                }
+                            }
+                        ]
+                    }
+                ],
+                "schemaUrl": "https://opentelemetry.io/schemas/1.17.0"
+            }
+        ]
+    }
+    send_otlp_data(OTLP_HTTP_METRICS_ENDPOINT, payload, "Database metrics")
+
 if __name__ == "__main__":
     # Adjust values as needed; these drive your MQTT topic template substitutions.
     common_host_name = "test-host-01"
@@ -148,6 +400,18 @@ if __name__ == "__main__":
         host_region=common_host_region,
         value=42.5
     )
+    time.sleep(1) # Give collector a moment
+
+    print("\nSending Go runtime metrics...")
+    send_go_runtime_metrics()
+    time.sleep(1) # Give collector a moment
+
+    print("\nSending Redis metrics...")
+    send_redis_metrics()
+    time.sleep(1) # Give collector a moment
+
+    print("\nSending database metrics...")
+    send_database_metrics()
     time.sleep(1) # Give collector a moment
 
     print("\nSending trace...")

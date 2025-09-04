@@ -59,7 +59,7 @@ def make_otlp_metrics_json(host_name: str, host_region: str, value: float) -> di
                                             "timeUnixNano": str(now_unix_nanos),
                                             "value": value,
                                             "attributes": [
-                                                {"key": "metric.attribute", "value": {"stringValue": "example"}}
+                                                {"key": "metric.attribute", "value": {"stringValue": "memory"}}
                                             ]
                                         }
                                     ]
@@ -135,12 +135,12 @@ if __name__ == "__main__":
     common_host_region = "eu-west-1"
 
     print("Sending log...")
-    send_log(
-        host_name=common_host_name,
-        host_region=common_host_region,
-        message="hello from OTLP/HTTP JSON"
-    )
-    time.sleep(1) # Give collector a moment
+    #send_log(
+    #    host_name=common_host_name,
+    #    host_region=common_host_region,
+    #    message="hello from OTLP/HTTP JSON"
+    #)
+    #time.sleep(1) # Give collector a moment
 
     print("\nSending metric...")
     send_metric(

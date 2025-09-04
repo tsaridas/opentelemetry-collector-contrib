@@ -1,0 +1,5 @@
+type: extension
+name: custommetricencoding
+stability: alpha
+distributions: [contrib]
+description: Custom metric encoding extension that transforms OpenTelemetry metrics to a custom JSON format with path, value, and timestamp fields.

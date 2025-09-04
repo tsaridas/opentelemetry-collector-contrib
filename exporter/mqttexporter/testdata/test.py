@@ -380,6 +380,195 @@ def send_database_metrics() -> None:
         ]
     }
     send_otlp_data(OTLP_HTTP_METRICS_ENDPOINT, payload, "Database metrics")
+
+def send_http_server_duration_metrics() -> None:
+    """Send HTTP server duration histogram metrics"""
+    # Generate dynamic timestamps
+    now_unix_nanos = int(time.time() * 1e9)
+    start_time_unix_nanos = now_unix_nanos - 5000000000  # 5 seconds ago
+    
+    payload = {
+        "resourceMetrics": [
+            {
+                "resource": {
+                    "attributes": [
+                        {"key": "host.name", "value": {"stringValue": "web-server-01"}},
+                        {"key": "service.name", "value": {"stringValue": "flagd"}},
+                        {"key": "service.version", "value": {"stringValue": "1.0.0"}}
+                    ]
+                },
+                "scopeMetrics": [
+                    {
+                        "scope": {
+                            "name": "http.server",
+                            "version": "1.0.0"
+                        },
+                        "metrics": [
+                            {
+                                "name": "http.server.duration",
+                                "description": "Measures the duration of inbound HTTP requests.",
+                                "unit": "s",
+                                "histogram": {
+                                    "dataPoints": [
+                                        {
+                                            "attributes": [
+                                                {
+                                                    "key": "http.method",
+                                                    "value": {
+                                                        "stringValue": "POST"
+                                                    }
+                                                },
+                                                {
+                                                    "key": "http.status_code",
+                                                    "value": {
+                                                        "stringValue": "200"
+                                                    }
+                                                },
+                                                {
+                                                    "key": "http.url",
+                                                    "value": {
+                                                        "stringValue": "/flagd.evaluation.v1.Service/ResolveBoolean"
+                                                    }
+                                                },
+                                                {
+                                                    "key": "service.name",
+                                                    "value": {
+                                                        "stringValue": "flagd"
+                                                    }
+                                                }
+                                            ],
+                                            "startTimeUnixNano": str(start_time_unix_nanos),
+                                            "timeUnixNano": str(now_unix_nanos),
+                                            "count": "8733",
+                                            "sum": 6.051846615999986,
+                                            "bucketCounts": [
+                                                "0",
+                                                "8733",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0",
+                                                "0"
+                                            ],
+                                            "explicitBounds": [
+                                                0,
+                                                5,
+                                                10,
+                                                25,
+                                                50,
+                                                75,
+                                                100,
+                                                250,
+                                                500,
+                                                750,
+                                                1000,
+                                                2500,
+                                                5000,
+                                                7500,
+                                                10000
+                                            ],
+                                            "min": 0.000207051,
+                                            "max": 0.054319165
+                                        }
+                                    ],
+                                    "aggregationTemporality": 2
+                                }
+                            }
+                        ]
+                    }
+                ],
+                "schemaUrl": "https://opentelemetry.io/schemas/1.17.0"
+            }
+        ]
+    }
+    send_otlp_data(OTLP_HTTP_METRICS_ENDPOINT, payload, "HTTP server duration metrics")
+
+def send_http_client_duration_metrics() -> None:
+    """Send HTTP client duration exponential histogram metrics"""
+    # Generate dynamic timestamps
+    now_unix_nanos = int(time.time() * 1e9)
+    start_time_unix_nanos = now_unix_nanos - 5000000000  # 5 seconds ago
+    
+    payload = {
+        "resourceMetrics": [
+            {
+                "resource": {
+                    "attributes": [
+                        {"key": "host.name", "value": {"stringValue": "client-app-01"}},
+                        {"key": "service.name", "value": {"stringValue": "api-client"}},
+                        {"key": "service.version", "value": {"stringValue": "2.1.0"}}
+                    ]
+                },
+                "scopeMetrics": [
+                    {
+                        "scope": {
+                            "name": "http.client",
+                            "version": "1.0.0"
+                        },
+                        "metrics": [
+                            {
+                                "name": "http.client.duration",
+                                "description": "Duration of HTTP client requests",
+                                "unit": "s",
+                                "exponentialHistogram": {
+                                    "dataPoints": [
+                                        {
+                                            "attributes": [
+                                                {
+                                                    "key": "http.method",
+                                                    "value": {
+                                                        "stringValue": "GET"
+                                                    }
+                                                },
+                                                {
+                                                    "key": "http.host",
+                                                    "value": {
+                                                        "stringValue": "api.example.com"
+                                                    }
+                                                }
+                                            ],
+                                            "startTimeUnixNano": str(start_time_unix_nanos),
+                                            "timeUnixNano": str(now_unix_nanos),
+                                            "count": "1540",
+                                            "sum": 125.432,
+                                            "scale": 1,
+                                            "zeroCount": "0",
+                                            "positive": {
+                                                "offset": -8,
+                                                "bucketCounts": [
+                                                    "12",
+                                                    "45",
+                                                    "320",
+                                                    "890",
+                                                    "230",
+                                                    "43"
+                                                ]
+                                            },
+                                            "min": 0.001234,
+                                            "max": 2.345678
+                                        }
+                                    ],
+                                    "aggregationTemporality": 2
+                                }
+                            }
+                        ]
+                    }
+                ],
+                "schemaUrl": "https://opentelemetry.io/schemas/1.17.0"
+            }
+        ]
+    }
+    send_otlp_data(OTLP_HTTP_METRICS_ENDPOINT, payload, "HTTP client duration metrics")
+
 if __name__ == "__main__":
     # Adjust values as needed; these drive your MQTT topic template substitutions.
     common_host_name = "test-host-01"
@@ -412,6 +601,15 @@ if __name__ == "__main__":
     print("\nSending database metrics...")
     send_database_metrics()
     time.sleep(1) # Give collector a moment
+
+    print("\nSending HTTP server duration metrics...")
+    send_http_server_duration_metrics()
+    time.sleep(1) # Give collector a moment
+
+    print("\nSending HTTP client duration metrics...")
+    send_http_client_duration_metrics()
+    time.sleep(1) # Give collector a moment
+
     print("\nSending trace...")
     send_trace(
         host_name=common_host_name,

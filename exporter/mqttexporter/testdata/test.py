@@ -59,7 +59,7 @@ def make_otlp_metrics_json(host_name: str, host_region: str, value: float) -> di
                                             "timeUnixNano": str(now_unix_nanos),
                                             "value": value,
                                             "attributes": [
-                                                {"key": "metric.attribute", "value": {"stringValue": "memory"}}
+                                                {"key": "metric.attribute", "value": {"stringValue": "example"}}
                                             ]
                                         }
                                     ]
@@ -380,19 +380,18 @@ def send_database_metrics() -> None:
         ]
     }
     send_otlp_data(OTLP_HTTP_METRICS_ENDPOINT, payload, "Database metrics")
-
 if __name__ == "__main__":
     # Adjust values as needed; these drive your MQTT topic template substitutions.
     common_host_name = "test-host-01"
     common_host_region = "eu-west-1"
 
     print("Sending log...")
-    #send_log(
-    #    host_name=common_host_name,
-    #    host_region=common_host_region,
-    #    message="hello from OTLP/HTTP JSON"
-    #)
-    #time.sleep(1) # Give collector a moment
+    send_log(
+        host_name=common_host_name,
+        host_region=common_host_region,
+        message="hello from OTLP/HTTP JSON"
+    )
+    time.sleep(1) # Give collector a moment
 
     print("\nSending metric...")
     send_metric(
@@ -413,7 +412,6 @@ if __name__ == "__main__":
     print("\nSending database metrics...")
     send_database_metrics()
     time.sleep(1) # Give collector a moment
-
     print("\nSending trace...")
     send_trace(
         host_name=common_host_name,

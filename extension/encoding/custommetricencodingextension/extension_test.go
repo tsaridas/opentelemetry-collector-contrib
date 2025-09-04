@@ -1,256 +1,273 @@
 // Copyright The OpenTelemetry Authors
 // SPDX-License-Identifier: Apache-2.0
 
-package custommetricencodingextension // import "github.com/open-telemetry/opentelemetry-collector-contrib/extension/encoding/custommetricencodingextension"
+package custommetricencodingextension
 
 import (
 	"context"
 	"encoding/json"
-	"fmt"
+	"testing"
+	"time"
 
-	"go.opentelemetry.io/collector/component"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.uber.org/zap"
-
-	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/encoding"
 )
 
-var (
-	_ encoding.MetricsMarshalerExtension = (*customMetricEncodingExtension)(nil)
-)
+func TestNewExtension(t *testing.T) {
+	config := &Config{}
+	logger := zap.NewNop()
 
-type customMetricEncodingExtension struct {
-	config *Config
-	logger *zap.Logger
+	ext, err := newExtension(config, logger)
+	require.NoError(t, err)
+	assert.NotNil(t, ext)
 }
 
-type TransformedMetric struct {
-	Path  string      `json:"path"`
-	Value interface{} `json:"value"`
-	Ts    string      `json:"ts"`
+func TestExtensionLifecycle(t *testing.T) {
+	config := &Config{}
+	logger := zap.NewNop()
+	ext, err := newExtension(config, logger)
+	require.NoError(t, err)
+
+	host := componenttest.NewNopHost()
+
+	// Test start
+	err = ext.Start(context.Background(), host)
+	assert.NoError(t, err)
+
+	// Test shutdown
+	err = ext.Shutdown(context.Background())
+	assert.NoError(t, err)
 }
 
-func newExtension(config *Config, logger *zap.Logger) (*customMetricEncodingExtension, error) {
-	return &customMetricEncodingExtension{
-		config: config,
-		logger: logger,
-	}, nil
+func TestMarshalMetrics(t *testing.T) {
+	config := &Config{}
+	logger := zap.NewNop()
+	ext, err := newExtension(config, logger)
+	require.NoError(t, err)
+
+	// Create test metrics
+	md := createTestMetrics()
+
+	// Marshal metrics
+	result, err := ext.MarshalMetrics(md)
+	require.NoError(t, err)
+
+	// Parse the result
+	var transformedMetrics []TransformedMetric
+	err = json.Unmarshal(result, &transformedMetrics)
+	require.NoError(t, err)
+
+	// Verify the structure
+	assert.Len(t, transformedMetrics, 2) // Two data points
+
+	// Check first metric (go.memory.used with stack attribute)
+	firstMetric := transformedMetrics[0]
+	assert.Equal(t, "/go.memory.used/stack", firstMetric.Path)
+	assert.Equal(t, float64(589824), firstMetric.Value)
+	assert.NotEmpty(t, firstMetric.Ts)
+
+	// Check second metric (go.memory.used with other attribute)
+	secondMetric := transformedMetrics[1]
+	assert.Equal(t, "/go.memory.used/other", secondMetric.Path)
+	assert.Equal(t, float64(10378256), secondMetric.Value)
+	assert.NotEmpty(t, secondMetric.Ts)
 }
 
-func (e *customMetricEncodingExtension) Start(ctx context.Context, host component.Host) error {
-	e.logger.Info("Custom metric encoding extension started")
-	return nil
-}
+func TestTransformMetrics(t *testing.T) {
+	config := &Config{}
+	logger := zap.NewNop()
+	ext, err := newExtension(config, logger)
+	require.NoError(t, err)
 
-func (e *customMetricEncodingExtension) Shutdown(ctx context.Context) error {
-	e.logger.Info("Custom metric encoding extension stopped")
-	return nil
-}
+	// Create test metrics
+	md := createTestMetrics()
 
-// MarshalMetrics transforms the OpenTelemetry metrics to your desired format
-func (e *customMetricEncodingExtension) MarshalMetrics(md pmetric.Metrics) ([]byte, error) {
-	transformedMetrics := e.transformMetrics(md)
-	return json.Marshal(transformedMetrics)
-}
+	// Transform metrics
+	result := ext.transformMetrics(md)
 
-func (e *customMetricEncodingExtension) transformMetrics(md pmetric.Metrics) []TransformedMetric {
-	var result []TransformedMetric
+	// Verify the result
+	assert.Len(t, result, 2)
 
-	for i := 0; i < md.ResourceMetrics().Len(); i++ {
-		rm := md.ResourceMetrics().At(i)
-
-		for j := 0; j < rm.ScopeMetrics().Len(); j++ {
-			sm := rm.ScopeMetrics().At(j)
-
-			for k := 0; k < sm.Metrics().Len(); k++ {
-				metric := sm.Metrics().At(k)
-
-				// Transform each metric based on its type
-				transformed := e.transformMetric(metric, rm.Resource())
-				result = append(result, transformed...)
-			}
-		}
-	}
-
-	return result
-}
-
-func (e *customMetricEncodingExtension) transformMetric(metric pmetric.Metric, resource pcommon.Resource) []TransformedMetric {
-	var result []TransformedMetric
-
-	// Extract host identifier from resource attributes
-	hostIdentifier := e.extractHostIdentifier(resource)
-
-	switch metric.Type() {
-	case pmetric.MetricTypeGauge:
-		for i := 0; i < metric.Gauge().DataPoints().Len(); i++ {
-			dp := metric.Gauge().DataPoints().At(i)
-			result = append(result, e.createNumberDataPointMetric(metric.Name(), dp, hostIdentifier))
-		}
-
-	case pmetric.MetricTypeSum:
-		for i := 0; i < metric.Sum().DataPoints().Len(); i++ {
-			dp := metric.Sum().DataPoints().At(i)
-			result = append(result, e.createNumberDataPointMetric(metric.Name(), dp, hostIdentifier))
-		}
-
-	case pmetric.MetricTypeHistogram:
-		for i := 0; i < metric.Histogram().DataPoints().Len(); i++ {
-			dp := metric.Histogram().DataPoints().At(i)
-			result = append(result, e.createHistogramMetric(metric.Name(), dp, hostIdentifier))
-		}
-
-	case pmetric.MetricTypeExponentialHistogram:
-		for i := 0; i < metric.ExponentialHistogram().DataPoints().Len(); i++ {
-			dp := metric.ExponentialHistogram().DataPoints().At(i)
-			result = append(result, e.createExponentialHistogramMetric(metric.Name(), dp, hostIdentifier))
-		}
-
-	case pmetric.MetricTypeSummary:
-		for i := 0; i < metric.Summary().DataPoints().Len(); i++ {
-			dp := metric.Summary().DataPoints().At(i)
-			result = append(result, e.createSummaryMetric(metric.Name(), dp, hostIdentifier))
-		}
-	}
-
-	return result
-}
-
-// extractHostIdentifier extracts the host identifier from resource attributes
-func (e *customMetricEncodingExtension) extractHostIdentifier(resource pcommon.Resource) string {
-	// Try to get host.name first
-	if hostName, exists := resource.Attributes().Get("host.name"); exists {
-		return hostName.Str()
-	}
-
-	// Fallback to other common host identifiers
-	if hostName, exists := resource.Attributes().Get("host"); exists {
-		return hostName.Str()
-	}
-
-	if instanceID, exists := resource.Attributes().Get("instance.id"); exists {
-		return instanceID.Str()
-	}
-
-	if serviceInstanceID, exists := resource.Attributes().Get("service.instance.id"); exists {
-		return serviceInstanceID.Str()
-	}
-
-	// If no host identifier found, use a default
-	return "unknown-host"
-}
-
-func (e *customMetricEncodingExtension) createNumberDataPointMetric(metricName string, dp pmetric.NumberDataPoint, hostIdentifier string) TransformedMetric {
-	// Get the value
-	var value interface{}
-	switch dp.ValueType() {
-	case pmetric.NumberDataPointValueTypeInt:
-		value = dp.IntValue()
-	case pmetric.NumberDataPointValueTypeDouble:
-		value = dp.DoubleValue()
-	default:
-		value = 0
-	}
-
-	// Get timestamps
-	startTs := dp.StartTimestamp().AsTime().UnixNano()
-	endTs := dp.Timestamp().AsTime().UnixNano()
-	ts := fmt.Sprintf("%d %d", startTs, endTs)
-
-	// Build the path
-	path := fmt.Sprintf("/%s/%s", metricName, hostIdentifier)
-
-	// Add label values to path if they exist
-	if dp.Attributes().Len() > 0 {
-		for _, attrVal := range dp.Attributes().AsRaw() {
-			// Add all attributes to the path
-			path += "/" + fmt.Sprintf("%v", attrVal)
-		}
-	}
-
-	return TransformedMetric{
-		Path:  path,
-		Value: value,
-		Ts:    ts,
+	// Check that paths don't contain hostname
+	for _, metric := range result {
+		assert.NotContains(t, metric.Path, "hostname2")
+		assert.NotContains(t, metric.Path, "unknown-host")
+		assert.True(t, len(metric.Ts) > 0)
 	}
 }
 
-func (e *customMetricEncodingExtension) createHistogramMetric(metricName string, dp pmetric.HistogramDataPoint, hostIdentifier string) TransformedMetric {
-	// For histograms, we'll use the count as the value
-	value := dp.Count()
+func TestCreateNumberDataPointMetric(t *testing.T) {
+	config := &Config{}
+	logger := zap.NewNop()
+	ext, err := newExtension(config, logger)
+	require.NoError(t, err)
 
-	// Get timestamps
-	startTs := dp.StartTimestamp().AsTime().UnixNano()
-	endTs := dp.Timestamp().AsTime().UnixNano()
-	ts := fmt.Sprintf("%d %d", startTs, endTs)
+	// Create a test data point
+	dp := pmetric.NewNumberDataPoint()
+	dp.SetIntValue(42)
+	dp.SetTimestamp(pcommon.NewTimestampFromTime(time.Now()))
 
-	// Build the path
-	path := fmt.Sprintf("/%s/%s", metricName, hostIdentifier)
+	// Add attributes
+	dp.Attributes().PutStr("type", "test")
 
-	// Add label values to path if they exist
-	if dp.Attributes().Len() > 0 {
-		for _, attrVal := range dp.Attributes().AsRaw() {
-			path += "/" + fmt.Sprintf("%v", attrVal)
-		}
-	}
+	// Create metric
+	result := ext.createNumberDataPointMetric("test.metric", dp)
 
-	return TransformedMetric{
-		Path:  path,
-		Value: value,
-		Ts:    ts,
-	}
+	// Verify the result
+	assert.Equal(t, "/test.metric/test", result.Path)
+	assert.Equal(t, int64(42), result.Value)
+	assert.NotEmpty(t, result.Ts)
 }
 
-func (e *customMetricEncodingExtension) createExponentialHistogramMetric(metricName string, dp pmetric.ExponentialHistogramDataPoint, hostIdentifier string) TransformedMetric {
-	// For exponential histograms, we'll use the count as the value
-	value := dp.Count()
+func TestCreateNumberDataPointMetricWithDoubleValue(t *testing.T) {
+	config := &Config{}
+	logger := zap.NewNop()
+	ext, err := newExtension(config, logger)
+	require.NoError(t, err)
 
-	// Get timestamps
-	startTs := dp.StartTimestamp().AsTime().UnixNano()
-	endTs := dp.Timestamp().AsTime().UnixNano()
-	ts := fmt.Sprintf("%d %d", startTs, endTs)
+	// Create a test data point with double value
+	dp := pmetric.NewNumberDataPoint()
+	dp.SetDoubleValue(42.5)
+	dp.SetTimestamp(pcommon.NewTimestampFromTime(time.Now()))
 
-	// Build the path
-	path := fmt.Sprintf("/%s/%s", metricName, hostIdentifier)
+	// Create metric
+	result := ext.createNumberDataPointMetric("test.metric", dp)
 
-	// Add label values to path if they exist
-	if dp.Attributes().Len() > 0 {
-		for _, attrVal := range dp.Attributes().AsRaw() {
-			path += "/" + fmt.Sprintf("%v", attrVal)
-		}
-	}
-
-	return TransformedMetric{
-		Path:  path,
-		Value: value,
-		Ts:    ts,
-	}
+	// Verify the result
+	assert.Equal(t, "/test.metric", result.Path)
+	assert.Equal(t, 42.5, result.Value)
+	assert.NotEmpty(t, result.Ts)
 }
 
-func (e *customMetricEncodingExtension) createSummaryMetric(metricName string, dp pmetric.SummaryDataPoint, hostIdentifier string) TransformedMetric {
-	// For summaries, we'll use the count as the value
-	value := dp.Count()
+func TestCreateHistogramMetric(t *testing.T) {
+	config := &Config{}
+	logger := zap.NewNop()
+	ext, err := newExtension(config, logger)
+	require.NoError(t, err)
 
-	// Get timestamps
-	startTs := dp.StartTimestamp().AsTime().UnixNano()
-	endTs := dp.Timestamp().AsTime().UnixNano()
-	ts := fmt.Sprintf("%d %d", startTs, endTs)
+	// Create a test histogram data point
+	dp := pmetric.NewHistogramDataPoint()
+	dp.SetCount(100)
+	dp.SetTimestamp(pcommon.NewTimestampFromTime(time.Now()))
 
-	// Build the path
-	path := fmt.Sprintf("/%s/%s", metricName, hostIdentifier)
+	// Add attributes
+	dp.Attributes().PutStr("bucket", "0-1")
 
-	// Add label values to path if they exist
-	if dp.Attributes().Len() > 0 {
-		for _, attrVal := range dp.Attributes().AsRaw() {
-			path += "/" + fmt.Sprintf("%v", attrVal)
-		}
-	}
+	// Create metric
+	result := ext.createHistogramMetric("test.histogram", dp)
 
-	return TransformedMetric{
-		Path:  path,
-		Value: value,
-		Ts:    ts,
-	}
+	// Verify the result
+	assert.Equal(t, "/test.histogram/0-1", result.Path)
+	assert.Equal(t, uint64(100), result.Value)
+	assert.NotEmpty(t, result.Ts)
 }
 
+func TestCreateExponentialHistogramMetric(t *testing.T) {
+	config := &Config{}
+	logger := zap.NewNop()
+	ext, err := newExtension(config, logger)
+	require.NoError(t, err)
+
+	// Create a test exponential histogram data point
+	dp := pmetric.NewExponentialHistogramDataPoint()
+	dp.SetCount(200)
+	dp.SetTimestamp(pcommon.NewTimestampFromTime(time.Now()))
+
+	// Add attributes
+	dp.Attributes().PutStr("scale", "2")
+
+	// Create metric
+	result := ext.createExponentialHistogramMetric("test.exp_histogram", dp)
+
+	// Verify the result
+	assert.Equal(t, "/test.exp_histogram/2", result.Path)
+	assert.Equal(t, uint64(200), result.Value)
+	assert.NotEmpty(t, result.Ts)
+}
+
+func TestCreateSummaryMetric(t *testing.T) {
+	config := &Config{}
+	logger := zap.NewNop()
+	ext, err := newExtension(config, logger)
+	require.NoError(t, err)
+
+	// Create a test summary data point
+	dp := pmetric.NewSummaryDataPoint()
+	dp.SetCount(50)
+	dp.SetTimestamp(pcommon.NewTimestampFromTime(time.Now()))
+
+	// Add attributes
+	dp.Attributes().PutStr("quantile", "0.5")
+
+	// Create metric
+	result := ext.createSummaryMetric("test.summary", dp)
+
+	// Verify the result
+	assert.Equal(t, "/test.summary/0.5", result.Path)
+	assert.Equal(t, uint64(50), result.Value)
+	assert.NotEmpty(t, result.Ts)
+}
+
+func TestTimestampFormat(t *testing.T) {
+	config := &Config{}
+	logger := zap.NewNop()
+	ext, err := newExtension(config, logger)
+	require.NoError(t, err)
+
+	// Create a test data point with known timestamp
+	testTime := time.Unix(0, 1756975296124471296)
+	dp := pmetric.NewNumberDataPoint()
+	dp.SetIntValue(42)
+	dp.SetTimestamp(pcommon.NewTimestampFromTime(testTime))
+
+	// Create metric
+	result := ext.createNumberDataPointMetric("test.metric", dp)
+
+	// Verify the timestamp format
+	assert.Equal(t, "1756975296124471296", result.Ts)
+}
+
+// Helper function to create test metrics similar to the example
+func createTestMetrics() pmetric.Metrics {
+	md := pmetric.NewMetrics()
+	rm := md.ResourceMetrics().AppendEmpty()
+
+	// Add resource attributes (but they won't be used in the path anymore)
+	rm.Resource().Attributes().PutStr("host.name", "hostname2")
+	rm.Resource().Attributes().PutStr("os.name", "linux")
+	rm.Resource().Attributes().PutStr("service.name", "tracksreceiver")
+	rm.Resource().Attributes().PutStr("service.version", "devtest")
+
+	sm := rm.ScopeMetrics().AppendEmpty()
+	sm.Scope().SetName("go.opentelemetry.io/contrib/instrumentation/runtime")
+	sm.Scope().SetVersion("0.62.0")
+
+	metric := sm.Metrics().AppendEmpty()
+	metric.SetName("go.memory.used")
+	metric.SetDescription("Memory used by the Go runtime.")
+	metric.SetUnit("By")
+
+	// Create sum metric
+	sum := metric.SetEmptySum()
+	sum.SetAggregationTemporality(pmetric.AggregationTemporalityCumulative)
+
+	// First data point - stack
+	dp1 := sum.DataPoints().AppendEmpty()
+	dp1.Attributes().PutStr("go.memory.type", "stack")
+	dp1.SetStartTimestamp(pcommon.NewTimestampFromTime(time.Now().Add(-5 * time.Second)))
+	dp1.SetTimestamp(pcommon.NewTimestampFromTime(time.Now()))
+	dp1.SetIntValue(589824)
+
+	// Second data point - other
+	dp2 := sum.DataPoints().AppendEmpty()
+	dp2.Attributes().PutStr("go.memory.type", "other")
+	dp2.SetStartTimestamp(pcommon.NewTimestampFromTime(time.Now().Add(-5 * time.Second)))
+	dp2.SetTimestamp(pcommon.NewTimestampFromTime(time.Now()))
+	dp2.SetIntValue(10378256)
+
+	return md
+}

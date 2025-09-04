@@ -79,69 +79,42 @@ func (e *customMetricEncodingExtension) transformMetrics(md pmetric.Metrics) []T
 func (e *customMetricEncodingExtension) transformMetric(metric pmetric.Metric, resource pcommon.Resource) []TransformedMetric {
 	var result []TransformedMetric
 
-	// Extract host identifier from resource attributes
-	hostIdentifier := e.extractHostIdentifier(resource)
-
 	switch metric.Type() {
 	case pmetric.MetricTypeGauge:
 		for i := 0; i < metric.Gauge().DataPoints().Len(); i++ {
 			dp := metric.Gauge().DataPoints().At(i)
-			result = append(result, e.createNumberDataPointMetric(metric.Name(), dp, hostIdentifier))
+			result = append(result, e.createNumberDataPointMetric(metric.Name(), dp))
 		}
 
 	case pmetric.MetricTypeSum:
 		for i := 0; i < metric.Sum().DataPoints().Len(); i++ {
 			dp := metric.Sum().DataPoints().At(i)
-			result = append(result, e.createNumberDataPointMetric(metric.Name(), dp, hostIdentifier))
+			result = append(result, e.createNumberDataPointMetric(metric.Name(), dp))
 		}
 
 	case pmetric.MetricTypeHistogram:
 		for i := 0; i < metric.Histogram().DataPoints().Len(); i++ {
 			dp := metric.Histogram().DataPoints().At(i)
-			result = append(result, e.createHistogramMetric(metric.Name(), dp, hostIdentifier))
+			result = append(result, e.createHistogramMetric(metric.Name(), dp))
 		}
 
 	case pmetric.MetricTypeExponentialHistogram:
 		for i := 0; i < metric.ExponentialHistogram().DataPoints().Len(); i++ {
 			dp := metric.ExponentialHistogram().DataPoints().At(i)
-			result = append(result, e.createExponentialHistogramMetric(metric.Name(), dp, hostIdentifier))
+			result = append(result, e.createExponentialHistogramMetric(metric.Name(), dp))
 		}
 
 	case pmetric.MetricTypeSummary:
 		for i := 0; i < metric.Summary().DataPoints().Len(); i++ {
 			dp := metric.Summary().DataPoints().At(i)
-			result = append(result, e.createSummaryMetric(metric.Name(), dp, hostIdentifier))
+			result = append(result, e.createSummaryMetric(metric.Name(), dp))
 		}
 	}
 
 	return result
 }
 
-// extractHostIdentifier extracts the host identifier from resource attributes
-func (e *customMetricEncodingExtension) extractHostIdentifier(resource pcommon.Resource) string {
-	// Try to get host.name first
-	if hostName, exists := resource.Attributes().Get("host.name"); exists {
-		return hostName.Str()
-	}
-
-	// Fallback to other common host identifiers
-	if hostName, exists := resource.Attributes().Get("host"); exists {
-		return hostName.Str()
-	}
-
-	if instanceID, exists := resource.Attributes().Get("instance.id"); exists {
-		return instanceID.Str()
-	}
-
-	if serviceInstanceID, exists := resource.Attributes().Get("service.instance.id"); exists {
-		return serviceInstanceID.Str()
-	}
-
-	// If no host identifier found, use a default
-	return "unknown-host"
-}
-
-func (e *customMetricEncodingExtension) createNumberDataPointMetric(metricName string, dp pmetric.NumberDataPoint, hostIdentifier string) TransformedMetric {
+func (e *customMetricEncodingExtension) createNumberDataPointMetric(metricName string, dp pmetric.NumberDataPoint) TransformedMetric {
 	// Get the value
 	var value interface{}
 	switch dp.ValueType() {
@@ -153,13 +126,11 @@ func (e *customMetricEncodingExtension) createNumberDataPointMetric(metricName s
 		value = 0
 	}
 
-	// Get timestamps
-	startTs := dp.StartTimestamp().AsTime().UnixNano()
-	endTs := dp.Timestamp().AsTime().UnixNano()
-	ts := fmt.Sprintf("%d %d", startTs, endTs)
+	// Get timestamp (only current timestamp, not start timestamp)
+	ts := fmt.Sprintf("%d", dp.Timestamp().AsTime().UnixNano())
 
 	// Build the path
-	path := fmt.Sprintf("/%s/%s", metricName, hostIdentifier)
+	path := fmt.Sprintf("/%s", metricName)
 
 	// Add label values to path if they exist
 	if dp.Attributes().Len() > 0 {
@@ -176,17 +147,15 @@ func (e *customMetricEncodingExtension) createNumberDataPointMetric(metricName s
 	}
 }
 
-func (e *customMetricEncodingExtension) createHistogramMetric(metricName string, dp pmetric.HistogramDataPoint, hostIdentifier string) TransformedMetric {
+func (e *customMetricEncodingExtension) createHistogramMetric(metricName string, dp pmetric.HistogramDataPoint) TransformedMetric {
 	// For histograms, we'll use the count as the value
 	value := dp.Count()
 
-	// Get timestamps
-	startTs := dp.StartTimestamp().AsTime().UnixNano()
-	endTs := dp.Timestamp().AsTime().UnixNano()
-	ts := fmt.Sprintf("%d %d", startTs, endTs)
+	// Get timestamp (only current timestamp, not start timestamp)
+	ts := fmt.Sprintf("%d", dp.Timestamp().AsTime().UnixNano())
 
 	// Build the path
-	path := fmt.Sprintf("/%s/%s", metricName, hostIdentifier)
+	path := fmt.Sprintf("/%s", metricName)
 
 	// Add label values to path if they exist
 	if dp.Attributes().Len() > 0 {
@@ -202,17 +171,15 @@ func (e *customMetricEncodingExtension) createHistogramMetric(metricName string,
 	}
 }
 
-func (e *customMetricEncodingExtension) createExponentialHistogramMetric(metricName string, dp pmetric.ExponentialHistogramDataPoint, hostIdentifier string) TransformedMetric {
+func (e *customMetricEncodingExtension) createExponentialHistogramMetric(metricName string, dp pmetric.ExponentialHistogramDataPoint) TransformedMetric {
 	// For exponential histograms, we'll use the count as the value
 	value := dp.Count()
 
-	// Get timestamps
-	startTs := dp.StartTimestamp().AsTime().UnixNano()
-	endTs := dp.Timestamp().AsTime().UnixNano()
-	ts := fmt.Sprintf("%d %d", startTs, endTs)
+	// Get timestamp (only current timestamp, not start timestamp)
+	ts := fmt.Sprintf("%d", dp.Timestamp().AsTime().UnixNano())
 
 	// Build the path
-	path := fmt.Sprintf("/%s/%s", metricName, hostIdentifier)
+	path := fmt.Sprintf("/%s", metricName)
 
 	// Add label values to path if they exist
 	if dp.Attributes().Len() > 0 {
@@ -228,17 +195,15 @@ func (e *customMetricEncodingExtension) createExponentialHistogramMetric(metricN
 	}
 }
 
-func (e *customMetricEncodingExtension) createSummaryMetric(metricName string, dp pmetric.SummaryDataPoint, hostIdentifier string) TransformedMetric {
+func (e *customMetricEncodingExtension) createSummaryMetric(metricName string, dp pmetric.SummaryDataPoint) TransformedMetric {
 	// For summaries, we'll use the count as the value
 	value := dp.Count()
 
-	// Get timestamps
-	startTs := dp.StartTimestamp().AsTime().UnixNano()
-	endTs := dp.Timestamp().AsTime().UnixNano()
-	ts := fmt.Sprintf("%d %d", startTs, endTs)
+	// Get timestamp (only current timestamp, not start timestamp)
+	ts := fmt.Sprintf("%d", dp.Timestamp().AsTime().UnixNano())
 
 	// Build the path
-	path := fmt.Sprintf("/%s/%s", metricName, hostIdentifier)
+	path := fmt.Sprintf("/%s", metricName)
 
 	// Add label values to path if they exist
 	if dp.Attributes().Len() > 0 {

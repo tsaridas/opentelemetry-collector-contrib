@@ -4,9 +4,9 @@ import time
 import requests
 import uuid
 
-OTLP_HTTP_LOGS_ENDPOINT = "http://localhost:4318/v1/logs"  # from receivers.otlp.protocols.http
-OTLP_HTTP_METRICS_ENDPOINT = "http://localhost:4318/v1/metrics"
-OTLP_HTTP_TRACES_ENDPOINT = "http://localhost:4318/v1/traces"
+OTLP_HTTP_LOGS_ENDPOINT = "http://127.0.0.1:4318/v1/logs"  # from receivers.otlp.protocols.http
+OTLP_HTTP_METRICS_ENDPOINT = "http://127.0.0.1:4318/v1/metrics"
+OTLP_HTTP_TRACES_ENDPOINT = "http://127.0.0.1:4318/v1/traces"
 
 def make_otlp_logs_json(host_name: str, host_region: str, message: str) -> dict:
     now_unix_nanos = int(time.time() * 1e9)

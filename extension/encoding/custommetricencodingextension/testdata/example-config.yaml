@@ -32,4 +32,10 @@ service:
     metrics:
       receivers: [otlp]
       exporters: [mqtt]
+    traces:
+      receivers: [otlp]
+      exporters: [mqtt]
+    logs:
+      receivers: [otlp]
+      exporters: [mqtt]
 
